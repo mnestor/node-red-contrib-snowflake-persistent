@@ -1,0 +1,35 @@
+{
+	"snowflake": {
+		"label": {
+      "name": "Name",
+      "account": "Account Name",
+      "username": "Username",
+      "password": "Password",
+      "privateKey": "Private Key",
+      "privateKeyPass": "Private Key Password",
+      "warehouse": "Warehouse",
+      "role": "Role",
+      "schema": "Schema",
+      "database": "Database",
+			"query": "Query",
+			"split": "Split results in multiple messages",
+			"rowsPerMsg": "Number of rows per message"
+    },
+    "placeholder": {
+      "name": "snowflakeConnection",
+      "account": "xy1234.us-east-1",
+      "username": "user",
+      "password": "",
+      "privateKey": "",
+      "privateKeyPass": "",
+      "warehouse": "DEMO_WH",
+      "role": "SYSADMIN",
+      "schema": "PUBLIC",
+      "database": ""
+    },
+    "tab": {
+      "connection": "Connection",
+      "options": "Options"
+    }
+  }
+}

@@ -1,0 +1,312 @@
+<script type="text/javascript">
+  "use strict";
+  /*global RED*/
+  RED.nodes.registerType("snowflakeSQLConfig", {
+    category: "config",
+    defaults: {
+      name: {
+        value: "",
+      },
+      account: {
+        value: "",
+        required: true,
+      },
+      accountnameFieldType: {
+        value: "str",
+      },
+      username: {
+        value: "",
+        required: true,
+      },
+      FieldType: {
+        value: "str",
+      },
+      password: {
+        value: "",
+      },
+      passwordFieldType: {
+        value: "str",
+      },
+      privateKey: {
+        value: "",
+      },
+      privateKeyFieldType: {
+        value: "str",
+      },
+      privateKeyPass: {
+        value: "",
+      },
+      privateKeyPassFieldType: {
+        value: "str",
+      },
+      warehouse: {
+        value: "",
+        required: true,
+      },
+      warehouseFieldType: {
+        value: "str",
+      },
+      schema: {
+        value: "PUBLIC",
+        required: true,
+      },
+      schemaFieldType: {
+        value: "str",
+      },
+      role: {
+        value: "",
+        required: true,
+      },
+      roleFieldType: {
+        value: "str",
+      },
+      database: {
+        value: "",
+        required: true,
+      },
+      databaseFieldType: {
+        value: "str",
+      },
+    },
+    label: function () {
+      return this.name || "Snowflake Config";
+    },
+    labelStyle: function () {
+      return this.name ? "node_label_italic" : "";
+    },
+    oneditprepare: function () {
+      const tabs = RED.tabs.create({
+        id: "snowflake-config-tabs",
+        onchange: function (tab) {
+          $("#snowflake-config-tabs-content").children().hide();
+          $("#" + tab.id).show();
+        },
+      });
+      tabs.addTab({
+        id: "snowflake-config-tab-connection",
+        label: this._("snowflake.tab.connection"),
+      });
+      tabs.addTab({
+        id: "snowflake-config-tab-options",
+        label: this._("snowflake.tab.options"),
+      });
+      $("#node-config-input-account").typedInput({
+        default: "str",
+        types: ["str", "global", "env"],
+        typeField: $("#node-config-input-accountFieldType"),
+      });
+      $("#node-config-input-username").typedInput({
+        default: "str",
+        types: ["str", "global", "env"],
+        typeField: $("#node-config-input-usernameFieldType"),
+      });
+      $("#node-config-input-password").typedInput({
+        default: "str",
+        types: ["str", "global", "env"],
+        typeField: $("#node-config-input-passwordFieldType"),
+      });
+      $("#node-config-input-privateKey").typedInput({
+        default: "str",
+        types: ["str", "global", "env"],
+        typeField: $("#node-config-input-privateKeyFieldType"),
+      });
+      $("#node-config-input-privateKeyPass").typedInput({
+        default: "str",
+        types: ["str", "global", "env"],
+        typeField: $("#node-config-input-privateKeyPassFieldType"),
+      });
+      this.privateKey = RED.editor.createEditor({
+        id: "node-config-input-editor",
+        mode: "ace/mode/text",
+        value: $("#node-config-input-privateKey").val(),
+      });
+    },
+    oneditsave: function () {
+      $("#node-config-input-privateKey").val(this.privateKey.getValue());
+      delete this.privateKey;
+    },
+  });
+</script>
+
+<script type="text/x-red" data-template-name="snowflakeSQLConfig">
+  <div class="form-row">
+  	<label for="node-config-input-name">
+  		<i class="fa fa-tag"></i>
+  		<span data-i18n="snowflake.label.name"></span>
+  	</label>
+  	<input type="text" id="node-config-input-name" data-i18n="[placeholder]snowflake.placeholder.name" />
+  </div>
+  <div class="form-row">
+  	<ul style="background: #fff; min-width: 600px; margin-bottom: 20px;" id="snowflake-config-tabs"></ul>
+  </div>
+  <div id="snowflake-config-tabs-content" style="min-height: 170px;">
+  	<div id="snowflake-config-tab-connection" style="display: none;">
+      <div class="form-row">
+        <label for="node-config-input-account">
+  				<i class="fa fa-server"></i>
+  				<span data-i18n="snowflake.label.account"></span>
+  			</label>
+  			<input type="text" id="node-config-input-account" data-i18n="[placeholder]snowflake.placeholder.account" style="width: 80%;" />
+  			<input type="hidden" id="node-config-input-accountFieldType" />
+      </div>
+      <div class="form-row">
+        <label for="node-config-input-username">
+  				<i class="fa fa-user"></i>
+  				<span data-i18n="snowflake.label.username"></span>
+  			</label>
+  			<input type="text" id="node-config-input-username" data-i18n="[placeholder]snowflake.placeholder.username" style="width: 80%;" />
+  			<input type="hidden" id="node-config-input-usernameFieldType" />
+      </div>
+        <div class="form-row">
+  			<label for="node-config-input-password">
+  				<i class="fa fa-lock"></i>
+  				<span data-i18n="snowflake.label.password"></span>
+  			</label>
+  			<input type="password" id="node-config-input-password" data-i18n="[placeholder]snowflake.placeholder.password" style="width: 80%;" />
+  			<input type="hidden" id="node-config-input-passwordFieldType" />
+      </div>
+      <div class="form-row">
+  			<label for="node-config-input-privateKey">
+  				<i class="fa fa-lock"></i>
+  				<span data-i18n="snowflake.label.privateKey"></span>
+  			</label>
+        <input type="text" id="node-config-input-privateKey">
+        <input type="hidden" id="node-config-input-privateKeyFieldType" />
+      </div>
+      <div class="form-row">
+        <label for="node-config-input-privateKeyPass">
+          <i class="fa fa-lock"></i>
+          <span data-i18n="snowflake.label.privateKeyPass"></span>
+        </label>
+        <input type="password" id="node-config-input-privateKeyPass" data-i18n="[placeholder]snowflake.placeholder.privateKeyPass" style="width: 80%;" />
+        <input type="hidden" id="node-config-input-privateKeyPassFieldType" />
+      </div>
+    </div>
+    <div id="snowflake-config-tab-options" style="display: none;">
+      <div class="form-row">
+        <label for="node-config-input-warehouse">
+  				<i class="fa fa-user"></i>
+  				<span data-i18n="snowflake.label.warehouse"></span>
+  			</label>
+  			<input type="text" id="node-config-input-warehouse" data-i18n="[placeholder]snowflake.placeholder.warehouse" style="width: 80%;" />
+  			<input type="hidden" id="node-config-input-warehouseFieldType" />
+      </div>
+      <div class="form-row">
+        <label for="node-config-input-role">
+  				<i class="fa fa-user"></i>
+  				<span data-i18n="snowflake.label.role"></span>
+  			</label>
+  			<input type="text" id="node-config-input-role" data-i18n="[placeholder]snowflake.placeholder.role" style="width: 80%;" />
+  			<input type="hidden" id="node-config-input-roleFieldType" />
+      </div>
+      <div class="form-row">
+        <label for="node-config-input-schema">
+  				<i class="fa fa-user"></i>
+  				<span data-i18n="snowflake.label.schema"></span>
+  			</label>
+  			<input type="text" id="node-config-input-schema" data-i18n="[placeholder]snowflake.placeholder.schema" style="width: 80%;" />
+  			<input type="hidden" id="node-config-input-schemaFieldType" />
+      </div>
+      <div class="form-row">
+        <label for="node-config-input-database">
+  				<i class="fa fa-user"></i>
+  				<span data-i18n="snowflake.label.database"></span>
+  			</label>
+  			<input type="text" id="node-config-input-database" data-i18n="[placeholder]snowflake.placeholder.database" style="width: 80%;" />
+  			<input type="hidden" id="node-config-input-databaseFieldType" />
+      </div>
+    </div>
+  </div>
+</script>
+
+<script type="text/x-red" data-template-name="snowflakeSQL">
+	<div class="form-row">
+		<label for="node-input-name">
+			<i class="icon-tag"></i>
+			<span data-i18n="snowflake.label.name"></span>
+		</label>
+		<input type="text" id="node-input-name" data-i18n="[placeholder]node-red:common.label.name" />
+	</div>
+	<div class="form-row">
+		<label for="node-input-snowflakeSQLConfig">
+			<i class="fa fa-server"></i>
+			<span data-i18n="snowflake.label.server"></span>
+		</label>
+		<input type="text" id="node-input-snowflakeSQLConfig" />
+	</div>
+	<div class="form-row">
+		<input type="checkbox" id="node-input-split" style="display: inline-block; width: auto; vertical-align: top;" />
+		<label for="node-input-split" style="width: auto;">
+			<span data-i18n="snowflake.label.split"></span>
+		</label>
+	</div>
+	<div class="form-row">
+		<label for="node-input-rowsPerMsg">
+			<span data-i18n="snowflake.label.rowsPerMsg"></span>
+		</label>
+		<input type="number" id="node-input-rowsPerMsg" placeholder="1" value="1" min="1" />
+	</div>
+	<div class="form-row" style="position: relative; margin-bottom: 0px;">
+		<label for="node-input-query">
+			<i class="fa fa-file-code-o"></i>
+			<span data-i18n="snowflake.label.query"></span>
+		</label>
+		<input type="hidden" id="node-input-query" autofocus="autofocus" />
+	</div>
+	<div class="form-row node-text-editor-row">
+		<div style="height: 300px; min-height: 150px;" class="node-text-editor" id="node-input-editor"></div>
+	</div>
+</script>
+
+
+<script type="text/javascript">
+	/* global RED:false, $:false */
+	RED.nodes.registerType('snowflakeSQL', {
+		category: 'storage',
+		color: '#5b85a7',
+		defaults: {
+			name: {
+				value: '',
+			},
+			query: {
+				value: 'SELECT * FROM ;',
+			},
+			snowflakeSQLConfig: {
+				type: 'snowflakeSQLConfig',
+				required: true,
+			},
+			split: {
+				value: false,
+			},
+			rowsPerMsg: {
+				value: 1,
+			},
+			outputs: {
+				value: 1,
+			},
+		},
+		inputs: 1,
+		//icon: 'postgresql.png',
+		align: 'left',
+		label: function () {
+			return this.name || 'snowflake';
+		},
+		labelStyle: function () {
+			return this.name ? 'node_label_italic' : '';
+		},
+		oneditprepare: function () {
+			$('#node-input-split').prop('checked', this.split);
+			$('#node-input-rowsPerMsg').value = this.split ? this.rowsPerMsg : 1;
+			this.editor = RED.editor.createEditor({
+				id: 'node-input-editor',
+				mode: 'ace/mode/sql',
+				value: $('#node-input-query').val(),
+			});
+			this.editor.focus();
+		},
+		oneditsave: function () {
+			$('#node-input-query').val(this.editor.getValue());
+			delete this.editor;
+		},
+	});
+</script>
