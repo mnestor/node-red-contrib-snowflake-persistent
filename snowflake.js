@@ -131,7 +131,7 @@ module.exports = function (RED) {
     node.database = n.database;
     node.databaseFieldType = n.databaseFieldType;
 
-    let connectionInfo = {
+    node.connectionInfo = {
       account: getField(node, n.accountFieldType, n.account),
       username: getField(node, n.usernameFieldType, n.username)
     };
@@ -146,7 +146,10 @@ module.exports = function (RED) {
       connectionInfo["password"] = getField(node, n.passwordFieldType, n.password);
     }
 
-    this.snowflakeConn = Snowflake.createConnection(connectionInfo);
+    // this.snowflakeConn = function () {
+    //   return Snowflake.createConnection(node.connectionInfo);
+    // }
+    this.snowflakeConn = Snowflake.createConnection(node.connectionInfo);
 
     this.snowflakeExecContext = {
       warehouse: getField(node, n.warehouseFieldType, n.warehouse),
@@ -305,21 +308,65 @@ module.exports = function (RED) {
 							try {
 								await connection.execute({
                   sqlText: query,
-                  streamResult: false,
+                  streamResult: node.split,
                   complete: async (err, stmt, rows) => {
                     try {
-                      msg.payload = rows;
-                      msg.sql = {
-                        command: query,
-                        rowCount: rows.length
-                      };
-                      downstreamReady = false;
-                      send(msg);
-                      if (tickUpstreamNode) {
-                        tickUpstreamNode.receive({ tick: true });
-                      }
-                      if (done) {
-                        done();
+                      if (node.split) {
+                        msg.sql = {
+                          command: query
+                        };
+                        let rows = [];
+                        const stream = stmt.streamRows();
+                        stream.on('data', (row) => {
+                          rows.push(row);
+                          console.log(rows.length)
+                          if (rows.length == node.rowsPerMsg) {
+                            console.log('sending');
+                            const msg2 = Object.assign({}, msg, {
+                              payload: rows
+                            });
+                            node.send(msg2);
+                            if (tickUpstreamNode) {
+                              tickUpstreamNode.receive({ tick: true });
+                            }
+                            rows = [];
+                          }
+                        });
+                        stream.on('end', () => {
+                          console.log(rows);
+                          if (rows.length !== 0) {
+                            console.log('done and empty');
+                            const msg2 = Object.assign({}, msg, {
+                              payload: rows,
+                              partial: true
+                            });
+                            node.send(msg2);
+                            if (tickUpstreamNode) {
+                              tickUpstreamNode.receive({ tick: true });
+                            }
+                          }
+                          if (done) {
+                            done();
+                          }
+                        });
+                        stream.on('error', (err) => {
+                          node.error(err.message, msg);
+                          done();
+                        })
+                      } else {
+                        msg.sql = {
+                          command: query,
+                          rowCount: rows.length
+                        };
+                        msg.payload = rows;
+                        downstreamReady = false;
+                        send(msg);
+                        if (tickUpstreamNode) {
+                          tickUpstreamNode.receive({ tick: true });
+                        }
+                        if (done) {
+                          done();
+                        }
                       }
                     }
                     catch (err) {
