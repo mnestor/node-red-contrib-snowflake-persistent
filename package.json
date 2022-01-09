@@ -7,14 +7,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mnestor/node-red-contrib-snowflake-persistent.git"
+    "url": "git+https://github.com/mnestor/node-red-contrib-snowflakedw.git"
   },
   "bundleDependencies": false,
   "deprecated": false,
-  "description": "connect to snowflake data warehouse from node-red using native snowflake-sdk",
+  "description": "connect to snowflake data warehouse from node-red using node.js snowflake driver",
   "keywords": [
     "node-red",
-    "snowflake"
+    "snowflake",
+    "node-red-contrib",
+    "backpressure"
   ],
   "license": "MIT",
   "node-red": {
@@ -23,9 +25,9 @@
     }
   },
   "bugs": {
-    "url": "https://github.com/chameleonbr/node-red-contrib-redis/issues"
+    "url": "https://github.com/chameleonbr/node-red-contrib-snowflakedw/issues"
   },
-  "homepage": "https://github.com/chameleonbr/node-red-contrib-redis#readme",
+  "homepage": "https://github.com/chameleonbr/node-red-contrib-snowflakedw#readme",
   "maintainers": [
     {
       "name": "mnestor",

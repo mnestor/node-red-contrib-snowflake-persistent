@@ -1,0 +1,74 @@
+<script type="text/x-red" data-help-name="snowflakeSQL">
+	<p>
+		<a href="https://github.com/mnestor/node-red-contrib-snowflakedw">node-red-contrib-snowflakedw</a>
+		is a Node-RED node to query a <a href="https://www.snowflake.com/">Snowflake Data Warehouse</a> 🐘 database
+    using their <a href="https://docs.snowflake.com/en/user-guide/nodejs-driver-use.html">Node.js driver</a>
+	</p>
+
+	<h3>Outputs</h3>
+	<p>The response (rows) is provided in <code>msg.payload</code> as an array.</p>
+	<p>
+		Additional information is provided as <code>msg.sql.rowCount</code> and <code>msg.sql.command</code>.
+	</p>
+
+	<h3>Inputs</h3>
+	<h4>SQL query template</h4>
+	<p>This node uses the <a href="https://github.com/janl/mustache.js">Mustache template system</a> to generate queries based on the message:</p>
+<pre>
+-- INTEGER id column
+SELECT * FROM table WHERE id = {{{ msg.id }}}
+
+-- TEXT id column
+SELECT * FROM table WHERE id = '{{{ msg.id }}}'
+</pre>
+
+	<h4>Dynamic SQL queries</h4>
+	<p>As an alternative to using the query template above, this node also accepts an SQL query via the <code>msg.query</code> parameter.</p>
+
+	<h4>Parameterized queries</h4>
+	<p>Parameters for parameterized queries can be passed as an array <code>msg.binds</code>:</p>
+<pre>
+// In a function, provide parameters for the parameterized query
+msg.binds = [ msg.id, 3 ];
+</pre>
+
+<pre>
+-- In this node, use a parameterized query
+SELECT * FROM table WHERE id = :1 OR id = :2
+</pre>
+
+	<h3>Backpressure</h3>
+	<p>
+		This node supports <em>backpressure</em> / <em>flow control</em>:
+		when the <em>Split results</em> option is enabled, it waits for a <em>tick</em> before releasing the next batch of lines,
+		to make sure the rest of your Node-RED flow is ready to process more data
+		(instead of risking an out-of-memory condition), and also conveys this information upstream.
+	</p><p>
+		So when the <em>Split results</em> option is enabled, this node will only output one message at first,
+		and then awaits a message containing a truthy <code>msg.tick</code> before releasing the next message.
+	</p><p>
+		To make this behaviour potentially automatic (avoiding manual wires),
+		this node declares its ability by exposing a truthy <code>node.tickConsumer</code> for downstream nodes to detect this feature,
+		and a truthy <code>node.tickProvider</code> for upstream nodes.
+		Likewise, this node detects upstream nodes using the same back-pressure convention, and automatically sends ticks.
+	</p>
+
+	<h3>Sequences for split results</h3>
+	<p>
+		When the <em>Split results</em> option is enabled (streaming), the messages contain some information following the conventions
+		for <a href="https://nodered.org/docs/user-guide/messages#message-sequences"><em>messages sequences</em></a>.
+	</p>
+
+<pre>
+{
+  payload: '...',
+    parts: {
+      id: 0.1234, // sequence ID, randomly generated (changes for every sequence)
+      index: 5, // incremented for each message of the same sequence
+      count: 6, // total number of messages; only available in the last message of a sequence
+    },
+    complete: true, // True only for the last message of a sequence
+}
+</pre>
+
+</script>

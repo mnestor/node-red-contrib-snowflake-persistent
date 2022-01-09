@@ -1,7 +1,5 @@
 "use strict";
 
-// const { resolve } = require('path/posix');
-
 /**
  * Return an incoming node ID if the node has any input wired to it, false otherwise.
  * If filter callback is not null, then this function filters incoming nodes.
@@ -119,7 +117,7 @@ module.exports = function (RED) {
           ? resolve(node.snowflakeConn)
           : node.snowflakeConn.connect((err, _connection) => {
             if (err) {
-              console.error(err.message);
+              // console.error(err.message);
               if (
                 err.code === 405501 ||
                 err.message === "Connection already in progress."
@@ -146,7 +144,7 @@ module.exports = function (RED) {
       });
 
       if (node.resetContext) {
-        console.debug("Resetting context");
+        // console.debug("Resetting context");
         node.resetContext = false;
         const statements = [
           {
@@ -170,8 +168,9 @@ module.exports = function (RED) {
     }
 
     node.executeStmt = async (statement) => {
+      console.info(statement);
       const connection = await node.getEstablishedConnection();
-      const results = await new Promise(function(resolve, reject) {
+      return await new Promise(function(resolve, reject) {
         connection.execute({
           ...statement,
           complete: (err, stmt, rows) => {
@@ -192,11 +191,12 @@ module.exports = function (RED) {
           }
         })
       });
-      return results || [null, []];
+      // return results || [null, []];
     }
 
-    node.close = () => {
-      node.getEstablishedConnection().destroy();
+    node.close = async () => {
+      let connection = await node.getEstablishedConnection();
+      connection.destroy();
     }
 
   }
@@ -227,7 +227,7 @@ module.exports = function (RED) {
     node.status({});
 
     node.on('close', function() {
-      node.server.getEstablishedConnection.close();
+      node.server.close();
     });
 
     node.on('input', async (msg, send, done) => {
@@ -243,7 +243,7 @@ module.exports = function (RED) {
 			}
 
 			if (msg.tick) {
-        console.log('message ticking');
+        // console.log('message ticking');
 				downstreamReady = true;
 				if (getNextRows) {
 					getNextRows();
@@ -271,17 +271,20 @@ module.exports = function (RED) {
 
 				downstreamReady = true;
 
-        // let params = [];
-        // if (msg.params && msg.params.length > 0) {
-        //   params = msg.params;
-        // } else if (msg.queryParameters && (typeof msg.queryParameters === 'object')) {
-        //   ({ text: query, values: params } = named.convert(query, msg.queryParameters));
-        // }
-
         const [stmt, rows] = await node.server.executeStmt({
           sqlText: query,
+          binds: msg.binds || [],
           streamResult: node.split
+        }).then((data) => {
+          return data;
+        }).catch((err) => {
+          handleError(err);
+          return [null, null];
         });
+
+        if (stmt === null) {
+          return;
+        }
 
         if (node.split) {
           let partsIndex = 0;
@@ -333,6 +336,11 @@ module.exports = function (RED) {
                   index: partsIndex
                 }
               });
+
+              if (finished) {
+                msg2.parts['count'] = partsIndex++;
+              }
+
               node.send(msg2);
 
               if (tickUpstreamNode) {
@@ -347,8 +355,6 @@ module.exports = function (RED) {
               if (nextData !== null) {
                 rows.push(nextData);
               } else {
-                console.log('we are done with readble');
-
                 getNextRows = null;
                 if (done) {
                   done();
