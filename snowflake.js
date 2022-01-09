@@ -29,57 +29,6 @@
 	return false;
 }
 
-const initiateConnection = async (connection, node) => {
-  return new Promise(function(resolve, reject) {
-    if (!connection.isUp()) {
-      connection.connect(async (err, conn) => {
-        if (err) {
-          node.status({fill:"red", shape:"ring", text: "Error"});
-          reject(err);
-        } else {
-          const statements = [
-            {
-              sqlText: `USE ROLE ${ node.config.snowflakeExecContext.role}`
-            },{
-              sqlText: `USE WAREHOUSE ${node.config.snowflakeExecContext.warehouse};`
-            },{
-              sqlText: `USE ${node.config.snowflakeExecContext.database}.${node.config.snowflakeExecContext.schema};`
-            }
-          ];
-
-          for (const statement of statements) {
-            await executeStmt(connection, statement)
-              .catch((err) => {
-                reject(err)
-              })
-          }
-
-          node.status({fill:"green", shape:"ring", text: "Connected"});
-          resolve(connection);
-        }
-      });
-    } else {
-      node.status({fill:"green", shape:"ring", text: "Connected"});
-      resolve(connection);
-    }
-  });
-}
-
-const executeStmt = async (connection, statement) => {
-  return new Promise(function(resolve, reject) {
-    connection.execute({
-      ...statement,
-      complete: (err, stmt) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(true);
-        }
-      }
-    })
-  });
-}
-
 module.exports = function (RED) {
   const Mustache = require('mustache');
   const Snowflake = require("snowflake-sdk");
@@ -131,6 +80,9 @@ module.exports = function (RED) {
     node.database = n.database;
     node.databaseFieldType = n.databaseFieldType;
 
+    node.resetContext = true;
+    node.retryWaitTime = 300;
+
     node.connectionInfo = {
       account: getField(node, n.accountFieldType, n.account),
       username: getField(node, n.usernameFieldType, n.username)
@@ -139,24 +91,114 @@ module.exports = function (RED) {
     const privateKey = getField(node, n.privateKeyFieldType, n.privateKey);
 
     if (privateKey.length > 0) {
-      connectionInfo["authenticator"] = "SNOWFLAKE_JWT";
-      connectionInfo["privateKey"] = privateKey;
-      connectionInfo["privateKeyPass"] = getField(node, n.privateKeyPassFieldType, n.privateKeyPass);
+      node.connectionInfo["authenticator"] = "SNOWFLAKE_JWT";
+      node.connectionInfo["privateKey"] = privateKey;
+      node.connectionInfo["privateKeyPass"] = getField(node, n.privateKeyPassFieldType, n.privateKeyPass);
     } else {
-      connectionInfo["password"] = getField(node, n.passwordFieldType, n.password);
+      node.connectionInfo["password"] = getField(node, n.passwordFieldType, n.password);
     }
 
-    // this.snowflakeConn = function () {
-    //   return Snowflake.createConnection(node.connectionInfo);
-    // }
-    this.snowflakeConn = Snowflake.createConnection(node.connectionInfo);
+    node.getConnection = () => {
+      node.resetContext = true;
+      return Snowflake.createConnection(node.connectionInfo);
+    }
+    node.snowflakeConn = node.getConnection();
 
-    this.snowflakeExecContext = {
+    node.snowflakeExecContext = {
       warehouse: getField(node, n.warehouseFieldType, n.warehouse),
       schema: getField(node, n.schemaFieldType, n.schema),
       role: getField(node, n.roleFieldType, n.role),
       database: getField(node, n.databaseFieldType, n.database),
     }
+
+    // mostly stolen from @MadhuPolu
+    // https://github.com/snowflakedb/snowflake-connector-nodejs/issues/168#issuecomment-980509649
+    node.getEstablishedConnection = async () => {
+      const resolvedActiveConnection = await new Promise((resolve, reject) => {
+        (node.snowflakeConn.isUp()) || false
+          ? resolve(node.snowflakeConn)
+          : node.snowflakeConn.connect((err, _connection) => {
+            if (err) {
+              console.error(err.message);
+              if (
+                err.code === 405501 ||
+                err.message === "Connection already in progress."
+              ) {
+                setTimeout(() => {
+                  resolve(node.getEstablishedConnection());
+                }, node.retryWaitTime);
+              } else if (
+                err.code === 405503 ||
+                err.message === "Connection already Terminated. Cannot connect again."
+              ) {
+                node.snowflakeConn = node.getConnection();
+                setTimeout(() => {
+                  resolve(node.getEstablishedConnection());
+                }, 0);
+              } else {
+                reject(err);
+              }
+            }
+            else {
+              resolve(_connection);
+            }
+          });
+      });
+
+      if (node.resetContext) {
+        console.debug("Resetting context");
+        node.resetContext = false;
+        const statements = [
+          {
+            sqlText: `USE ROLE ${ node.snowflakeExecContext.role}`
+          },{
+            sqlText: `USE WAREHOUSE ${node.snowflakeExecContext.warehouse};`
+          },{
+            sqlText: `USE ${node.snowflakeExecContext.database}.${node.snowflakeExecContext.schema};`
+          }
+        ];
+
+        for (const statement of statements) {
+          await node.executeStmt(statement)
+            .catch((err) => {
+              reject(err)
+            })
+        }
+      }
+
+      return resolvedActiveConnection;
+    }
+
+    node.executeStmt = async (statement) => {
+      const connection = await node.getEstablishedConnection();
+      const results = await new Promise(function(resolve, reject) {
+        connection.execute({
+          ...statement,
+          complete: (err, stmt, rows) => {
+            if (err) {
+              if (
+                err.code === 407002 ||
+                err.message === "Unable to perform operation using terminated connection."
+              ) {
+                setTimeout(async () => {
+                  resolve(await this.executeStmt(statement));
+                }, node.retryWaitTime);
+              } else {
+                reject(err);
+              }
+            } else {
+              resolve([stmt, rows]);
+            }
+          }
+        })
+      });
+      return results || [null, []];
+    }
+
+    node.close = () => {
+      node.getEstablishedConnection().destroy();
+    }
+
   }
   RED.nodes.registerType("snowflakeSQLConfig", SnowflakeConfigNode);
 
@@ -167,7 +209,7 @@ module.exports = function (RED) {
 		node.query = config.query;
 		node.split = config.split;
 		node.rowsPerMsg = config.rowsPerMsg;
-    this.config = RED.nodes.getNode(config.snowflakeSQLConfig);
+    this.server = RED.nodes.getNode(config.snowflakeSQLConfig);
 
 		// Declare the ability of this node to provide ticks upstream for back-pressure
 		node.tickProvider = true;
@@ -185,14 +227,10 @@ module.exports = function (RED) {
     node.status({});
 
     node.on('close', function() {
-      node.config.snowflakeConn.destroy();
-      node.status({fill:"green", shape:"ring", text: "Disconnected"});
+      node.server.getEstablishedConnection.close();
     });
 
     node.on('input', async (msg, send, done) => {
-			// 'send' and 'done' require Node-RED 1.0+
-			send = send || function () { node.send.apply(node, arguments); };
-
 			if (tickUpstreamId === undefined) {
 				tickUpstreamId = findInputNodeId(node, (n) => RED.nodes.getNode(n.id).tickConsumer);
 				tickUpstreamNode = tickUpstreamId ? RED.nodes.getNode(tickUpstreamId) : null;
@@ -214,8 +252,6 @@ module.exports = function (RED) {
         const partsId = Math.random();
 				let query = msg.query ? msg.query : Mustache.render(node.query, { msg });
 
-				let connection = null;
-
 				const handleError = (err) => {
 					const error = (err ? err.toString() : 'Unknown error!') + ' ' + query;
 					// handleDone();
@@ -233,158 +269,120 @@ module.exports = function (RED) {
 					}
 				};
 
-				// handleDone();
 				downstreamReady = true;
 
-        try {
-          connection = await initiateConnection(node.config.snowflakeConn, node)
-            .catch((err) => {
-              throw err;
-            });
+        // let params = [];
+        // if (msg.params && msg.params.length > 0) {
+        //   params = msg.params;
+        // } else if (msg.queryParameters && (typeof msg.queryParameters === 'object')) {
+        //   ({ text: query, values: params } = named.convert(query, msg.queryParameters));
+        // }
 
-					let params = [];
-					if (msg.params && msg.params.length > 0) {
-						params = msg.params;
-					} else if (msg.queryParameters && (typeof msg.queryParameters === 'object')) {
-						({ text: query, values: params } = named.convert(query, msg.queryParameters));
-					}
+        const [stmt, rows] = await node.server.executeStmt({
+          sqlText: query,
+          streamResult: node.split
+        });
 
-					// if (node.split) {
-					// 	let partsIndex = 0;
-					// 	delete msg.complete;
+        if (node.split) {
+          let partsIndex = 0;
+          msg.sql = {
+            command: query
+          };
 
-					// 	cursor = client.query(new Cursor(query, params));
+          let rows = [];
+          const stream = stmt.streamRows();
 
-					// 	const cursorcallback = (err, rows, result) => {
-					// 		if (err) {
-					// 			handleError(err);
-					// 		} else {
-					// 			const complete = rows.length < node.rowsPerMsg;
-					// 			if (complete) {
-					// 				handleDone();
-					// 			}
-					// 			const msg2 = Object.assign({}, msg, {
-					// 				payload: (node.rowsPerMsg || 1) > 1 ? rows : rows[0],
-					// 				pgsql: {
-					// 					command: result.command,
-					// 					rowCount: result.rowCount,
-					// 				},
-					// 				parts: {
-					// 					id: partsId,
-					// 					type: 'array',
-					// 					index: partsIndex,
-					// 				},
-					// 			});
-					// 			if (msg.parts) {
-					// 				msg2.parts.parts = msg.parts;
-					// 			}
-					// 			if (complete) {
-					// 				msg2.parts.count = partsIndex + 1;
-					// 				msg2.complete = true;
-					// 			}
-					// 			partsIndex++;
-					// 			downstreamReady = false;
-					// 			send(msg2);
-					// 			if (complete) {
-					// 				if (tickUpstreamNode) {
-					// 					tickUpstreamNode.receive({ tick: true });
-					// 				}
-					// 				if (done) {
-					// 					done();
-					// 				}
-					// 			} else {
-					// 				getNextRows();
-					// 			}
-					// 		}
-					// 	};
+          stream.on('error', (err) => {
+            node.error(err.message, msg);
+            done();
+          });
 
-					// 	getNextRows = () => {
-					// 		if (downstreamReady) {
-					// 			cursor.read(node.rowsPerMsg || 1, cursorcallback);
-					// 		}
-					// 	};
-					// } else {
-						getNextRows = async () => {
-							try {
-								await connection.execute({
-                  sqlText: query,
-                  streamResult: node.split,
-                  complete: async (err, stmt, rows) => {
-                    try {
-                      if (node.split) {
-                        msg.sql = {
-                          command: query
-                        };
-                        let rows = [];
-                        const stream = stmt.streamRows();
-                        stream.on('data', (row) => {
-                          rows.push(row);
-                          console.log(rows.length)
-                          if (rows.length == node.rowsPerMsg) {
-                            console.log('sending');
-                            const msg2 = Object.assign({}, msg, {
-                              payload: rows
-                            });
-                            node.send(msg2);
-                            if (tickUpstreamNode) {
-                              tickUpstreamNode.receive({ tick: true });
-                            }
-                            rows = [];
-                          }
-                        });
-                        stream.on('end', () => {
-                          console.log(rows);
-                          if (rows.length !== 0) {
-                            console.log('done and empty');
-                            const msg2 = Object.assign({}, msg, {
-                              payload: rows,
-                              partial: true
-                            });
-                            node.send(msg2);
-                            if (tickUpstreamNode) {
-                              tickUpstreamNode.receive({ tick: true });
-                            }
-                          }
-                          if (done) {
-                            done();
-                          }
-                        });
-                        stream.on('error', (err) => {
-                          node.error(err.message, msg);
-                          done();
-                        })
-                      } else {
-                        msg.sql = {
-                          command: query,
-                          rowCount: rows.length
-                        };
-                        msg.payload = rows;
-                        downstreamReady = false;
-                        send(msg);
-                        if (tickUpstreamNode) {
-                          tickUpstreamNode.receive({ tick: true });
-                        }
-                        if (done) {
-                          done();
-                        }
-                      }
-                    }
-                    catch (err) {
-                      node.error(err.message, msg);
-                      done();
-                    }
-                  }
-                });
-							} catch (ex) {
-								handleError(ex);
-							}
-						};
-					// }
+          let readableRunning = false;
 
-					getNextRows();
-				} catch (err) {
-					handleError(err);
-				}
+          stream.on('readable', () => {
+            getNextRows = async () => {
+              if (!downstreamReady) {
+                return;
+              }
+
+              let nextData = null;
+              let finished = false;
+              for (let i = rows.length; i < node.rowsPerMsg; i++) {
+                let data = await stream.read();
+                if (data === null) {
+                  finished = true;
+                  break;
+                }
+                rows.push(data);
+              }
+
+              if (!finished) {
+                nextData = await stream.read();
+                if (nextData === null) {
+                  finished = true;
+                }
+              }
+
+              //clone this so we don't mess up the messages
+              const msg2 = Object.assign({}, msg, {
+                payload: rows,
+                complete: nextData === null,
+                parts: {
+                  id: partsId,
+                  type: 'array',
+                  index: partsIndex
+                }
+              });
+              node.send(msg2);
+
+              if (tickUpstreamNode) {
+                tickUpstreamNode.receive({ tick: true });
+              }
+
+              rows = [];
+              partsIndex++;
+              downstreamReady = false;
+
+              //we get a null on the last item.
+              if (nextData !== null) {
+                rows.push(nextData);
+              } else {
+                console.log('we are done with readble');
+
+                getNextRows = null;
+                if (done) {
+                  done();
+                }
+              }
+            };
+
+            // emit data on start of readable
+            if (!readableRunning) {
+              readableRunning = true;
+              getNextRows();
+            }
+          });
+        } else {
+          msg.sql = {
+            command: query,
+            rowCount: rows.length
+          };
+
+          msg.payload = rows;
+          downstreamReady = false;
+          send(msg);
+
+          if (tickUpstreamNode) {
+            tickUpstreamNode.receive({ tick: true });
+          }
+
+          if (done) {
+            done();
+          }
+        }
+        // };
+
+        // getNextRows();
       }
     });
   }
