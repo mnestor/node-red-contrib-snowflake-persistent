@@ -104,6 +104,6 @@ conventions for [*messages sequences*](https://nodered.org/docs/user-guide/messa
 
 ## Credits
 
-Major credit due to [Alexandre Alapetite](https://alexandra.dk/alexandre.alapetite) ([Alexandra Institute](https://alexandra.dk)) as a good deal of the ideas for this implementation and even some copy/paste of his [postgresql node](https://github.com/alexandrainst/node-red-contrib-postgresql)
+Major credit due to [Alexandre Alapetite](https://alexandra.dk/alexandre.alapetite) ([Alexandra Institute](https://alexandra.dk)) as a good deal of the ideas for this implementation and even some copy/paste of his [https://github.com/alexandrainst/node-red-contrib-postgresql](https://github.com/alexandrainst/node-red-contrib-postgresql)
 
 Contributions and collaboration welcome.
