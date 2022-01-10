@@ -43,7 +43,7 @@
     "eslint-plugin-html": "6.2.0",
     "eslint-plugin-import": "2.25.4",
     "eslint-plugin-node": "11.1.0",
-    "eslint-plugin-promise": "5.2.0",
+    "eslint-plugin-promise": "6.0.0",
     "mocha": "9.1.3"
   }
 }
