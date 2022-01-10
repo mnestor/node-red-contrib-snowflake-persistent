@@ -1,7 +1,7 @@
 {
   "name": "@ghmnestor/node-red-contrib-snowflakedw",
   "main": "snowflake.js",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "Mike Nestor",
   "repository": {
     "type": "git",

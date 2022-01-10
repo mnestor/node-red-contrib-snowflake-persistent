@@ -33,11 +33,11 @@ As an alternative to using the query template above, this node also accepts an S
 
 ### Parameterized query (numeric)
 
-Parameters for parameterized queries can be passed as a parameter array `msg.params`:
+Parameters for parameterized queries can be passed as a parameter array `msg.binds`:
 
 ```js
 // In a function, provide parameters for the parameterized query
-msg.params = [ msg.id, 3 ];
+msg.binds = [ msg.id, 3 ];
 ```
 
 ```sql
