@@ -96,8 +96,7 @@ conventions for [*messages sequences*](https://nodered.org/docs/user-guide/messa
   parts: {
     id: 0.1234, // sequence ID, randomly generated (changes for every sequence)
     index: 5, // incremented for each message of the same sequence
-    count: 6, // total number of messages; only available in the last message of a sequence
-    parts: {}, // optional upstream parts information
+    count: 6 // total number of messages; only available in the last message of a sequence
   },
   complete: true, // True only for the last message of a sequence
 }
