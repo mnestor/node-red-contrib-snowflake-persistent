@@ -49,7 +49,7 @@ SELECT * FROM table WHERE id = :1 OR id = :2;
 
 ### Using the Node-RED Editor
 
-You can install [**node-red-contrib-postgresql**](https://flows.nodered.org/node/node-red-contrib-snowflakedw) directly using the editor:
+You can install [**node-red-contrib-snowflakedw**](https://flows.nodered.org/node/node-red-contrib-snowflakedw) directly using the editor:
 Select *Manage Palette* from the menu (top right), and then select the *Install* tab in the palette.
 
 ### Using npm
