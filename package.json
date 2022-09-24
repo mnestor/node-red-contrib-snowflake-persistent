@@ -38,7 +38,7 @@
     "mustache": "^4.2.0"
   },
   "devDependencies": {
-    "eslint": "8.23.1",
+    "eslint": "8.24.0",
     "eslint-config-standard": "16.0.3",
     "eslint-plugin-html": "7.1.0",
     "eslint-plugin-import": "2.26.0",
